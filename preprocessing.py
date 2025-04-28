@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify, render_template, send_from_directory
 from werkzeug.utils import secure_filename
 from PyPDF2 import PdfReader
 from PIL import Image
+from time import perf_counter  # use perf_counter for better precision
 import pytesseract
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -15,7 +16,7 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = "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"
 
 app = Flask(__name__)
 
@@ -152,6 +153,8 @@ def health_check():
         "has_qa_chain": qa_chain is not None
     })
 
+from time import perf_counter  # use perf_counter for better precision
+
 @app.route("/ask", methods=["POST"])
 def ask():
     global vector_store, qa_chain, latency_log
@@ -162,44 +165,30 @@ def ask():
     question_text = ""
     if request.content_type and "multipart/form-data" in request.content_type:
         question_text = request.form.get("question", "").strip()
-        file = request.files.get("file")
-        if file and allowed_file(file.filename):
-            file_ext = file.filename.rsplit('.', 1)[1].lower()
-            file_id = str(uuid.uuid4())
-            unique_filename = f"{file_id}.{file_ext}"
-
-            if file_ext in ['jpg', 'jpeg', 'png', 'gif']:
-                file_path = os.path.join(app.config['IMAGES_FOLDER'], unique_filename)
-            else:
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-
-
-            file.save(file_path)
-            image_text = extract_text_from_image(file_path)
-
-            if image_text.strip():
-                image_text = f"IMAGE TEXT:\n{image_text}"
-                if vector_store:
-                    create_vector_store([image_text], vector_store)
-                else:
-                    vector_store = create_vector_store([image_text])
-                qa_chain = initialize_qa_chain(vector_store)
-                question_text = f"{image_text}\n\nUSER QUESTION:\n{question_text}"
-
-    else:
-        if request.is_json:
-            data = request.get_json()
-            question_text = data.get("question", "").strip() if data else ""
+    elif request.is_json:
+        data = request.get_json()
+        question_text = data.get("question", "").strip() if data else ""
 
     if not question_text:
         return jsonify({"answer": "No question provided."}), 400
 
     try:
-        start_time = time.time()
-        result = qa_chain({"question": question_text})
-        latency = time.time() - start_time
+        total_start = perf_counter()
 
-        latency_log.append(latency)
+        # Step 1: Retrieval step timing
+        retrieval_start = perf_counter()
+        retriever = qa_chain.retriever
+        _ = retriever.invoke(question_text)  # <-- just invoke to measure retrieval time
+        retrieval_end = perf_counter()
+
+        # Step 2: LLM Generation step timing
+        llm_start = perf_counter()
+        result = qa_chain({"question": question_text})  # <-- do NOT touch internals, call as normal
+        llm_end = perf_counter()
+
+        total_end = perf_counter()
+
+        latency_log.append(total_end - total_start)
         avg_latency = sum(latency_log) / len(latency_log)
 
         answer = result.get("answer", "I couldn't find an answer.")
@@ -207,13 +196,17 @@ def ask():
 
         response = {
             "answer": answer,
-            "latency": latency,
-            "average_latency": avg_latency,
+            "step_latencies": {
+                "retrieval_time": round(retrieval_end - retrieval_start, 4),
+                "llm_generation_time": round(llm_end - llm_start, 4),
+                "total_latency": round(total_end - total_start, 4)
+            },
+            "average_latency": round(avg_latency, 4),
             "token_usage": token_usage
         }
 
+        print(f"[ASK] Detailed Timing: {response['step_latencies']}")
 
-        print(f"[ASK] Response: {response}")
         return jsonify(response)
     except Exception as e:
         print(f"[ASK] Error during chain execution: {e}")
