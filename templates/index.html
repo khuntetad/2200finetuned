@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>CS 2200 AI TA</title>
+
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <!-- MathJax for LaTeX -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: {fontCache: 'global'}
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
+    <style>
+        :root {
+            --buzz-gold: #B3A369;
+            --tech-blue: #003057;
+        }
+
+        .bg-buzz-gold {
+            background-color: var(--buzz-gold);
+        }
+
+        .bg-tech-blue {
+            background-color: var(--tech-blue);
+        }
+
+        .text-tech-blue {
+            color: var(--tech-blue);
+        }
+
+        .text-buzz-gold {
+            color: var(--buzz-gold);
+        }
+
+        .chat-container {
+            height: calc(100vh - 300px);
+            overflow-y: auto;
+        }
+
+        .message {
+            max-width: 80%;
+            margin-bottom: 10px;
+            padding: 10px 15px;
+            border-radius: 18px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+
+        .user-message {
+            background-color: var(--buzz-gold);
+            color: var(--tech-blue);
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot-message {
+            background-color: #F3F4F6;
+            color: #1F2937;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            margin: 0 1px;
+            background-color: #9CA3AF;
+            border-radius: 50%;
+            display: block;
+            animation: typing 1s infinite ease-in-out;
+        }
+
+        .typing-indicator span:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes typing {
+            0% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+
+            100% {
+                transform: translateY(0);
+            }
+        }
+
+        .file-upload-progress {
+            height: 4px;
+            width: 100%;
+            background-color: #E5E7EB;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .file-upload-progress-bar {
+            height: 100%;
+            background-color: var(--buzz-gold);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .image-preview {
+            max-width: 100px;
+            max-height: 100px;
+            object-fit: contain;
+            border-radius: 4px;
+            border: 1px solid #E5E7EB;
+        }
+
+        .reaction-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.875rem; /* text‑sm */
+            color: #9CA3AF; /* neutral‑400 */
+            transition: color .2s;
+        }
+
+        .reaction-btn:hover {
+            color: var(--tech-blue);
+        }
+
+        .reaction-btn.active {
+            color: var(--buzz-gold);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50">
+<div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <header class="text-center mb-8 py-6 rounded-lg shadow-md bg-tech-blue text-white">
+        <h1 class="text-3xl font-bold">CS 2200 TA</h1>
+        <p class="text-gray-200 mt-2">Your AI Teaching Assistant</p>
+    </header>
+
+    <!-- Upload Panel -->
+    <div class="max-w-3xl mx-auto mb-6 bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-tech-blue">Upload Study Materials</h2>
+            <button id="toggleUploadBtn" class="text-sm text-gray-600 hover:text-tech-blue focus:outline-none">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+
+        <div id="uploadPanel" class="p-4 hidden">
+            <div class="mb-4">
+                <p class="text-sm text-gray-600 mb-2">Upload PDF files or images of homework questions to get customized
+                    help
+                </p>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center" id="dropZone">
+                    <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.gif" multiple class="hidden">
+                    <label for="fileInput" class="cursor-pointer flex flex-col items-center justify-center">
+                        <i class="fas fa-file-upload text-3xl text-gray-400 mb-2"></i>
+                        <span class="text-gray-600">Click to browse or drop files here</span>
+                        <span class="text-xs text-gray-500 mt-1">PDF and image files (JPG, PNG, GIF)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="uploadList" class="space-y-3">
+                <!-- Uploaded files will appear here -->
+            </div>
+
+            <div class="flex justify-end mt-4">
+                <button id="clearUploadsBtn" class="text-sm text-gray-600 hover:text-red-500 mr-4 hidden">
+                    Clear All
+                </button>
+                <button id="processFilesBtn"
+                        class="bg-tech-blue hover:opacity-90 text-white font-medium py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed hidden">
+                    Process Files
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Card -->
+    <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="chat-container p-6" id="chatContainer">
+            <div class="bot-message message">
+                <p>Hello! I'm your online TA for CS 2200. Ask anything about the textbook or upload your homework
+                    questions
+                    for help!</p>
+            </div>
+        </div>
+
+        <!-- Input area with image attachment -->
+        <div class="p-4 border-t border-gray-200 bg-gray-50">
+            <div id="imagePreviewContainer" class="flex flex-wrap gap-2 mb-3 hidden">
+                <!-- Image previews will appear here -->
+            </div>
+
+            <form id="questionForm" class="flex flex-wrap items-center">
+                <div class="flex items-center w-full">
+                    <input type="text" id="questionInput"
+                           class="flex-1 border border-gray-300 rounded-l-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                           placeholder="Ask a question or upload an image...">
+                    <label for="attachImageInput"
+                           class="bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 cursor-pointer">
+                        <i class="fas fa-image"></i>
+                    </label>
+                    <input type="file" id="attachImageInput" accept="image/*" class="hidden" multiple>
+                    <button type="submit"
+                            class="bg-buzz-gold hover:opacity-90 text-white font-semibold py-3 px-6 rounded-r-lg transition duration-200">
+                        <i class="fas fa-paper-plane mr-2"></i>Send
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="max-w-3xl mx-auto mt-6 text-center">
+        <p class="text-sm text-gray-500">This TA helps guide you to answers, not just give them!</p>
+    </div>
+</div>
+
+<script type="module">
+    import {initializeApp} from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import {getAnalytics} from "https://www.gstatic.com/firebasejs/11.6.0/firebase-analytics.js";
+    import {
+        getFirestore,
+        collection,
+        addDoc,
+        serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+    document.addEventListener('DOMContentLoaded', function () {
+        
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCToyMfR_1-vlxaFpG-kWFICd201ffP0hQ",
+            authDomain: "project6675-f5679.firebaseapp.com",
+            projectId: "project6675-f5679",
+            storageBucket: "project6675-f5679.firebasestorage.app",
+            messagingSenderId: "1098012230850",
+            appId: "1:1098012230850:web:e357b75a6a80225df1675b",
+            measurementId: "G-PP45547T29"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getFirestore(app);
+
+        const chatContainer = document.getElementById('chatContainer');
+        const questionForm = document.getElementById('questionForm');
+        const questionInput = document.getElementById('questionInput');
+        const toggleUploadBtn = document.getElementById('toggleUploadBtn');
+        const uploadPanel = document.getElementById('uploadPanel');
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const uploadList = document.getElementById('uploadList');
+        const clearUploadsBtn = document.getElementById('clearUploadsBtn');
+        const processFilesBtn = document.getElementById('processFilesBtn');
+        const attachImageInput = document.getElementById('attachImageInput');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+
+        let uploadedFiles = [];
+        let attachedImages = [];
+
+
+        toggleUploadBtn.addEventListener('click', function () {
+            uploadPanel.classList.toggle('hidden');
+            const icon = this.querySelector('i');
+            if (uploadPanel.classList.contains('hidden')) {
+                icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+            } else {
+                icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+            }
+        });
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        attachImageInput.addEventListener('change', function (e) {
+            if (e.target.files.length > 0) {
+                for (const file of e.target.files) {
+                    if (file.type.startsWith('image/')) {
+                        attachedImages.push(file);
+                        addImagePreview(file);
+                    }
+                }
+
+                if (attachedImages.length > 0) {
+                    imagePreviewContainer.classList.remove('hidden');
+                }
+            }
+        });
+
+        dropZone.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            dropZone.classList.add('border-buzz-gold', 'bg-yellow-50');
+        });
+
+        dropZone.addEventListener('dragleave', function (e) {
+            e.preventDefault();
+            dropZone.classList.remove('border-buzz-gold', 'bg-yellow-50');
+        });
+
+        dropZone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            dropZone.classList.remove('border-buzz-gold', 'bg-yellow-50');
+
+            if (e.dataTransfer.files.length > 0) {
+                handleFiles(e.dataTransfer.files);
+            }
+        });
+
+        processFilesBtn.addEventListener('click', function () {
+            if (uploadedFiles.length === 0) return;
+
+            processFilesBtn.disabled = true;
+            processFilesBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+            console.log("REACHED UPLOAD EVENT LISTENER")
+            const formData = new FormData();
+            uploadedFiles.forEach(file => {
+                console.log("Before");
+                formData.append('file', file);
+                console.log("After")
+                console.log(file.length)
+            });
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    addMessage("I've processed your uploaded materials and can now answer questions about them!", 'bot');
+                    processFilesBtn.innerHTML = 'Process Files';
+                    processFilesBtn.disabled = false;
+
+                    uploadedFiles.forEach(file => {
+                        const fileElement = document.getElementById(`file-${file.name.replace(/\s+/g, '-')}`);
+                        if (fileElement) {
+                            const statusElement = fileElement.querySelector('.file-status');
+                            statusElement.innerHTML = '<span class="text-green-500"><i class="fas fa-check-circle mr-1"></i>Processed</span>';
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error(error);
+                    addMessage("Sorry, I encountered an error processing your files. Please try again.", 'bot');
+                    processFilesBtn.innerHTML = 'Process Files';
+                    processFilesBtn.disabled = false;
+
+                    uploadedFiles.forEach(file => {
+                        const fileElement = document.getElementById(`file-${file.name.replace(/\s+/g, '-')}`);
+                        if (fileElement) {
+                            const statusElement = fileElement.querySelector('.file-status');
+                            statusElement.innerHTML = '<span class="text-red-500"><i class="fas fa-exclamation-circle mr-1"></i>Failed</span>';
+                        }
+                    });
+                });
+        });
+
+        clearUploadsBtn.addEventListener('click', function () {
+            uploadedFiles = [];
+            uploadList.innerHTML = '';
+            clearUploadsBtn.classList.add('hidden');
+            processFilesBtn.classList.add('hidden');
+        });
+
+        function handleFileSelect(e) {
+            handleFiles(e.target.files);
+        }
+
+        function handleFiles(files) {
+            for (const file of files) {
+                if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
+                    if (!uploadedFiles.some(f => f.name === file.name)) {
+                        uploadedFiles.push(file);
+                        addFileToUI(file);
+                    }
+                }
+            }
+
+            if (uploadedFiles.length > 0) {
+                clearUploadsBtn.classList.remove('hidden');
+                processFilesBtn.classList.remove('hidden');
+            }
+        }
+
+        function addFileToUI(file) {
+            const fileId = `file-${file.name.replace(/\s+/g, '-')}`;
+
+            const fileElement = document.createElement('div');
+            fileElement.id = fileId;
+            fileElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
+
+            const fileInfo = document.createElement('div');
+            fileInfo.className = 'flex items-center';
+
+            const fileIcon = document.createElement('div');
+            fileIcon.className = 'mr-3';
+
+            if (file.type === 'application/pdf') {
+                fileIcon.className += ' text-red-500';
+                fileIcon.innerHTML = '<i class="fas fa-file-pdf"></i>';
+            } else if (file.type.startsWith('image/')) {
+                fileIcon.className += ' text-blue-500';
+
+                // For images, show a thumbnail
+                if (file.type.startsWith('image/')) {
+                    const img = document.createElement('img');
+                    img.className = 'w-10 h-10 object-cover rounded';
+                    img.alt = file.name;
+
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+
+                    fileIcon.innerHTML = '';
+                    fileIcon.appendChild(img);
+                } else {
+                    fileIcon.innerHTML = '<i class="fas fa-file-image"></i>';
+                }
+            }
+
+            const fileDetails = document.createElement('div');
+            fileDetails.innerHTML = `
+          <div class="text-sm font-medium text-gray-700">${file.name}</div>
+          <div class="text-xs text-gray-500">${(file.size / 1024).toFixed(1)} KB</div>
+        `;
+
+            const fileControls = document.createElement('div');
+            fileControls.className = 'flex items-center';
+
+            const fileStatus = document.createElement('div');
+            fileStatus.className = 'file-status text-xs mr-3';
+            fileStatus.innerHTML = '<span class="text-gray-500">Ready</span>';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'text-gray-400 hover:text-red-500';
+            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            removeBtn.addEventListener('click', function () {
+                uploadedFiles = uploadedFiles.filter(f => f.name !== file.name);
+                fileElement.remove();
+
+                if (uploadedFiles.length === 0) {
+                    clearUploadsBtn.classList.add('hidden');
+                    processFilesBtn.classList.add('hidden');
+                }
+            });
+
+            fileInfo.appendChild(fileIcon);
+            fileInfo.appendChild(fileDetails);
+
+            fileControls.appendChild(fileStatus);
+            fileControls.appendChild(removeBtn);
+
+            fileElement.appendChild(fileInfo);
+            fileElement.appendChild(fileControls);
+
+            uploadList.appendChild(fileElement);
+        }
+
+        function addImagePreview(file) {
+            const previewId = `preview-${attachedImages.indexOf(file)}`;
+
+            const previewContainer = document.createElement('div');
+            previewContainer.id = previewId;
+            previewContainer.className = 'relative';
+
+            const img = document.createElement('img');
+            img.className = 'image-preview';
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs';
+            removeBtn.innerHTML = '×';
+            removeBtn.addEventListener('click', function () {
+                attachedImages = attachedImages.filter(f => f !== file);
+                previewContainer.remove();
+
+                if (attachedImages.length === 0) {
+                    imagePreviewContainer.classList.add('hidden');
+                }
+            });
+
+            previewContainer.appendChild(img);
+            previewContainer.appendChild(removeBtn);
+
+            imagePreviewContainer.appendChild(previewContainer);
+        }
+
+        function fileToDataURL(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        questionForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const question = questionInput.value.trim();
+            if (!question && attachedImages.length === 0) return;
+
+            let userHTML = "";
+            if (question) userHTML += `<p>${question}</p>`;
+
+            if (attachedImages.length) {
+                const urlPromises = attachedImages.map(fileToDataURL);
+                const dataURLs = await Promise.all(urlPromises);
+
+                dataURLs.forEach((src) => {
+                    userHTML += `<img src="${src}" class="mt-2 max-w-xs rounded shadow">`;
+                });
+            }
+
+            addMessage(userHTML, 'user');
+
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'bot-message message typing-indicator';
+            typingIndicator.id = 'typingIndicator';
+            typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+            chatContainer.appendChild(typingIndicator);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            questionInput.value = '';
+
+            const formData = new FormData();
+            if (question) {
+                formData.append('question', question);
+            }
+
+            attachedImages.forEach((image, index) => {
+                formData.append('file', image);
+            });
+
+            attachedImages = [];
+            imagePreviewContainer.innerHTML = '';
+            imagePreviewContainer.classList.add('hidden');
+
+            fetch('/ask', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('typingIndicator')?.remove();
+                    addMessage(data.answer, 'bot');
+                })
+                .catch(error => {
+                    document.getElementById('typingIndicator')?.remove();
+                    addMessage("Sorry, I encountered an error processing your question.", 'bot');
+                    console.error(error);
+                });
+        });
+
+        function addMessage(text, sender, questionText = '') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className =
+                sender === 'user' ? 'user-message message' : 'bot-message message';
+
+            if (sender === 'bot') {
+                text = text
+                    .replace(/```([\s\S]*?)```/g,
+                        '<pre class="bg-gray-100 p-3 rounded my-2 overflow-auto text-sm"><code>$1</code></pre>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br>');
+            }
+
+            messageDiv.innerHTML = text;
+
+            if (sender === 'bot') {
+                const reactions = document.createElement('div');
+                reactions.className = 'mt-3 flex items-center space-x-6';
+
+                const likeBtn = document.createElement('button');
+                likeBtn.className = 'reaction-btn focus:outline-none';
+                likeBtn.innerHTML = `<i class="fas fa-thumbs-up"></i>`;
+
+                const dislikeBtn = document.createElement('button');
+                dislikeBtn.className = 'reaction-btn focus:outline-none';
+                dislikeBtn.innerHTML = `<i class="fas fa-thumbs-down"></i>`;
+
+                reactions.appendChild(likeBtn);
+                reactions.appendChild(dislikeBtn);
+                messageDiv.appendChild(reactions);
+
+                let voted = false;
+
+                async function writeFeedback(reaction) {
+                    try {
+
+                        await addDoc(collection(db, 'feedback'), {
+                            question: questionText,
+                            answer: text,
+                            reaction: reaction,
+                            createdAt: serverTimestamp()
+                        });
+                    } catch (err) {
+                        console.error('Firestore write error:', err);
+                    }
+                }
+
+                function lockButtons() {
+                    voted = true;
+                    likeBtn.disabled = true;
+                    dislikeBtn.disabled = true;
+                    likeBtn.classList.add('cursor-not-allowed', 'opacity-50');
+                    dislikeBtn.classList.add('cursor-not-allowed', 'opacity-50');
+                }
+
+                likeBtn.addEventListener('click', () => {
+                    if (voted) return;
+                    likeBtn.classList.add('active');
+                    writeFeedback('like');
+                    lockButtons();
+                });
+
+                dislikeBtn.addEventListener('click', () => {
+                    if (voted) return;
+                    dislikeBtn.classList.add('active');
+                    writeFeedback('dislike');
+                    lockButtons();
+                });
+            }
+
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            if (sender === 'bot' && window.MathJax) {
+                MathJax.typesetPromise([messageDiv]).catch(err => console.error('MathJax error:', err));
+            }
+        }
+    });
+</script>
+</body>
+
+</html>
