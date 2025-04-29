@@ -29,11 +29,12 @@ $ git clone <repo‑url> cs2200‑ai‑ta && cd cs2200‑ai‑ta
 $ python -m venv .venv
 $ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# 3. Install Python dependencies
+# 3. Make a requirements.txt with the dependencies below
+# and Install Python dependencies
 $ pip install -r requirements.txt
 ```
 
-### `requirements.txt`
+### `Dependencies`
 
 ```text
 Flask>=2.3
@@ -61,7 +62,7 @@ python-dotenv      # optional, for .env files
 ##  Running the app
 
 ```bash
-$ python app.py
+$ python preprocessing.py
 ```
 
 Then open [http://localhost:5001](http://localhost:5001) in a browser.
@@ -75,16 +76,6 @@ Then open [http://localhost:5001](http://localhost:5001) in a browser.
 3. Use the **Upload Study Materials** drawer to drop PDFs. Press **Process Files** to ingest them into the vector store.
 4. The TA responds with guidance – not full answers – per the prompt rules.
 
-Backend helper routes:
-
-| Method | Path       | Description                             |
-| ------ | ---------- | --------------------------------------- |
-| GET    | `/health`  | Basic readiness info                    |
-| GET    | `/latency` | Average request latency                 |
-| POST   | `/upload`  | Ingest a PDF or image (multipart form)  |
-| POST   | `/ask`     | Main chat endpoint                      |
-| POST   | `/reset`   | Clear uploads & reload default textbook |
-| POST   | `/clear`   | Wipe conversation memory only           |
 
 ---
 
