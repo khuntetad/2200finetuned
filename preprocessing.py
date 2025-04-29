@@ -1,14 +1,10 @@
 import os
 import uuid
-import io
 import time
-from flask import Flask, request, jsonify, render_template, send_from_directory
-from werkzeug.utils import secure_filename
+from flask import Flask, request, jsonify, render_template
 from PyPDF2 import PdfReader
 from PIL import Image
-from time import perf_counter  # use perf_counter for better precision
 import pytesseract
-
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import CharacterTextSplitter
@@ -17,7 +13,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 
 os.environ[
-    "OPENAI_API_KEY"] = "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"
+    "OPENAI_API_KEY"] = "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"
 
 app = Flask(__name__)
 
@@ -173,6 +169,28 @@ def ask():
     question_text = ""
     if request.content_type and "multipart/form-data" in request.content_type:
         question_text = request.form.get("question", "").strip()
+        file = request.files.get("file")
+        if file and allowed_file(file.filename):
+            file_ext = file.filename.rsplit('.', 1)[1].lower()
+            file_id = str(uuid.uuid4())
+            unique_filename = f"{file_id}.{file_ext}"
+
+            if file_ext in ['jpg', 'jpeg', 'png', 'gif']:
+                file_path = os.path.join(app.config['IMAGES_FOLDER'], unique_filename)
+            else:
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+
+            file.save(file_path)
+            image_text = extract_text_from_image(file_path)
+
+            if image_text.strip():
+                image_text = f"IMAGE TEXT:\n{image_text}"
+                if vector_store:
+                    create_vector_store([image_text], vector_store)
+                else:
+                    vector_store = create_vector_store([image_text])
+                qa_chain = initialize_qa_chain(vector_store)
+                question_text = f"{image_text}\n\nUSER QUESTION:\n{question_text}"
     elif request.is_json:
         data = request.get_json()
         question_text = data.get("question", "").strip() if data else ""
