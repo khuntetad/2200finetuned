@@ -40,7 +40,7 @@ def allowed_file(filename):
 
 def extract_pdf_text(file_path):
     startTimer = time.time()
-    print("[DEBUG] Loading PDF from:", file_path)
+    # print("[DEBUG] Loading PDF from:", file_path)
     try:
         pdf_reader = PdfReader(file_path)
         text = ""
@@ -63,7 +63,7 @@ def extract_text_from_image(image_path):
         startTime = time.time()
         image = Image.open(image_path)
         text = pytesseract.image_to_string(image)
-        print(f"[DEBUG] OCR snippet ({image_path}): {text[:200]}")
+        # print(f"[DEBUG] OCR snippet ({image_path}): {text[:200]}")
         endTime = time.time()
         print(f"[UPLOAD] OCR time: {endTime - startTime} seconds") 
         return text
@@ -133,7 +133,7 @@ def initialize_qa_chain(vstore):
 
 try:
     text_from_default_pdf = extract_pdf_text("2200-textbook.pdf")
-    print("[DEBUG] Default PDF text length:", len(text_from_default_pdf))
+    # print("[DEBUG] Default PDF text length:", len(text_from_default_pdf))
     vector_store = create_vector_store([text_from_default_pdf])
     qa_chain = initialize_qa_chain(vector_store)
     print("[INIT] QA chain initialized with default textbook.")
@@ -145,15 +145,8 @@ except Exception as e:
 def index():
     return render_template("index.html")
 
-@app.route("/health", methods=["GET"])
-def health_check():
-    return jsonify({
-        "status": "ok",
-        "has_vector_store": vector_store is not None,
-        "has_qa_chain": qa_chain is not None
-    })
 
-from time import perf_counter  # use perf_counter for better precision
+from time import perf_counter
 
 @app.route("/ask", methods=["POST"])
 def ask():
@@ -175,15 +168,13 @@ def ask():
     try:
         total_start = perf_counter()
 
-        # Step 1: Retrieval step timing
         retrieval_start = perf_counter()
         retriever = qa_chain.retriever
-        _ = retriever.invoke(question_text)  # <-- just invoke to measure retrieval time
+        _ = retriever.invoke(question_text)
         retrieval_end = perf_counter()
 
-        # Step 2: LLM Generation step timing
         llm_start = perf_counter()
-        result = qa_chain({"question": question_text})  # <-- do NOT touch internals, call as normal
+        result = qa_chain({"question": question_text})
         llm_end = perf_counter()
 
         total_end = perf_counter()
@@ -212,16 +203,6 @@ def ask():
         print(f"[ASK] Error during chain execution: {e}")
         return jsonify({"answer": "An error occurred while processing your question."}), 500
 
-@app.route("/latency", methods=["GET"])
-def get_latency():
-    if latency_log:
-        avg = round(sum(latency_log) / len(latency_log), 2)
-    else:
-        avg = 0.0
-    return jsonify({
-        "average_latency": avg,
-        "requests_count": len(latency_log)
-    })
 
 @app.route("/upload", methods=["POST"])
 def upload_material():
@@ -238,9 +219,8 @@ def upload_material():
         return jsonify({"error": "Unsupported extension"}), 400
 
     ext = file.filename.rsplit(".", 1)[1].lower()
-    uid = f"{uuid.uuid4()}.{ext}"
     folder = app.config["IMAGES_FOLDER"] if ext in ["jpg", "jpeg", "png", "gif"] else app.config["UPLOAD_FOLDER"]
-    path = os.path.join(folder, uid)
+    path = os.path.join(folder, f"{uuid.uuid4()}.{ext}")
     file.save(path)
 
     if ext == "pdf":
@@ -267,15 +247,6 @@ def upload_material():
         "message": "Material added to knowledge base.",
         "chars_ingested": len(new_text)
     })
-
-@app.route("/clear", methods=["POST"])
-def clear_conversation():
-    global qa_chain, vector_store
-    if vector_store:
-        qa_chain = initialize_qa_chain(vector_store)
-        return jsonify({"message": "Conversation memory cleared."})
-    else:
-        return jsonify({"error": "No active vector store"}), 400
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5001)
