@@ -16,7 +16,8 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ[
+    "OPENAI_API_KEY"] = "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"
 
 app = Flask(__name__)
 
@@ -28,16 +29,18 @@ app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'jpg', 'jpeg', 'png', 'gif'}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['IMAGES_FOLDER'], exist_ok=True)
 
-
 vector_store = None
 qa_chain = None
 latest_image_text = ""
 
 latency_log = []
 
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
+
+# Function extracts text from each page in pdf and appends to a string
 def extract_pdf_text(file_path):
     startTimer = time.time()
     # print("[DEBUG] Loading PDF from:", file_path)
@@ -48,16 +51,17 @@ def extract_pdf_text(file_path):
             page_text = page.extract_text() or ""
             text += page_text
         endTimer = time.time()
-        print(f"[UPLOAD] Textbook: {endTimer - startTimer} seconds") 
+        print(f"[UPLOAD] Textbook: {endTimer - startTimer} seconds")
         return text
-        
+
 
     except Exception as e:
         print(f"[ERROR] Extracting text from PDF: {e}")
         return ""
 
+
+# Function uses pytesseract to extract text from image and returns a string
 def extract_text_from_image(image_path):
-    
     print("[DEBUG] Processing image for OCR:", image_path)
     try:
         startTime = time.time()
@@ -65,13 +69,14 @@ def extract_text_from_image(image_path):
         text = pytesseract.image_to_string(image)
         # print(f"[DEBUG] OCR snippet ({image_path}): {text[:200]}")
         endTime = time.time()
-        print(f"[UPLOAD] OCR time: {endTime - startTime} seconds") 
+        print(f"[UPLOAD] OCR time: {endTime - startTime} seconds")
         return text
     except Exception as e:
         print(f"[ERROR] Extracting text from image: {e}")
         return ""
-    
 
+
+# Function splits string variable containing text from whole pdf into chunks and creates a FAISS vector store
 def create_vector_store(texts, existing_store=None):
     text_splitter = CharacterTextSplitter(
         separator="\n",
@@ -85,15 +90,16 @@ def create_vector_store(texts, existing_store=None):
         if text.strip():
             chunks = text_splitter.split_text(text)
             all_chunks.extend(chunks)
-    if not all_chunks:
+    if all_chunks:
+        embeddings = OpenAIEmbeddings()
+        if not existing_store:
+            return FAISS.from_texts(all_chunks, embeddings)
+        else:
+            existing_store.add_texts(all_chunks)
+            return existing_store
+    else:
         return existing_store or None
 
-    embeddings = OpenAIEmbeddings()
-    if existing_store:
-        existing_store.add_texts(all_chunks)
-        return existing_store
-    else:
-        return FAISS.from_texts(all_chunks, embeddings)
 
 def initialize_qa_chain(vstore):
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
@@ -120,7 +126,6 @@ def initialize_qa_chain(vstore):
         """
     )
 
-
     llm = ChatOpenAI(temperature=0.15, model="gpt-4o")
     chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
@@ -131,6 +136,8 @@ def initialize_qa_chain(vstore):
     )
     return chain
 
+
+# Creating initial vector store from 2200 textbook
 try:
     text_from_default_pdf = extract_pdf_text("2200-textbook.pdf")
     # print("[DEBUG] Default PDF text length:", len(text_from_default_pdf))
@@ -141,6 +148,11 @@ except Exception as e:
     print("[ERROR] Initializing QA chain with default textbook:", e)
 
 
+# A wrapper function to send data to the frontend
+def res_template(message_type, message, status_code):
+    return jsonify({message_type: message}), status_code
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -148,6 +160,9 @@ def index():
 
 from time import perf_counter
 
+
+# This route takes the user's prompt and queries the vector store for useful info then sends the info along
+# with the query to the OpenAI GPT4o model
 @app.route("/ask", methods=["POST"])
 def ask():
     global vector_store, qa_chain, latency_log
@@ -163,16 +178,18 @@ def ask():
         question_text = data.get("question", "").strip() if data else ""
 
     if not question_text:
-        return jsonify({"answer": "No question provided."}), 400
+        return res_template("answer", "No question provided.", 400)
 
     try:
         total_start = perf_counter()
 
+        # This is where the retrieval occurs
         retrieval_start = perf_counter()
         retriever = qa_chain.retriever
         _ = retriever.invoke(question_text)
         retrieval_end = perf_counter()
 
+        # This is where we pass on the retrieved data along with user prompt to GPT4o
         llm_start = perf_counter()
         result = qa_chain({"question": question_text})
         llm_end = perf_counter()
@@ -201,22 +218,22 @@ def ask():
         return jsonify(response)
     except Exception as e:
         print(f"[ASK] Error during chain execution: {e}")
-        return jsonify({"answer": "An error occurred while processing your question."}), 500
+        return res_template("answer", "An error occurred while processing your question.", 500)
 
 
+# This route handles uploading additional pdf files and adding the text in them to the vector store
 @app.route("/upload", methods=["POST"])
 def upload_material():
     global vector_store, qa_chain
 
-    upload_start_time = time.time()  # start timer
+    upload_start_time = time.time()
 
     if "file" not in request.files:
-        return jsonify({"error": "No file part"}), 400
+        return res_template("error", "No file part", 400)
+
     file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "Empty filename"}), 400
-    if not allowed_file(file.filename):
-        return jsonify({"error": "Unsupported extension"}), 400
+    if file.filename == "" or not allowed_file(file.filename):
+        return res_template("error", "Invalid file", 400)
 
     ext = file.filename.rsplit(".", 1)[1].lower()
     folder = app.config["IMAGES_FOLDER"] if ext in ["jpg", "jpeg", "png", "gif"] else app.config["UPLOAD_FOLDER"]
@@ -229,7 +246,7 @@ def upload_material():
         new_text = extract_text_from_image(path)
 
     if not new_text.strip():
-        return jsonify({"error": "Could not extract any text"}), 422
+        return res_template("error", "Could not extract any text", 422)
 
     if vector_store:
         create_vector_store([new_text], existing_store=vector_store)
@@ -238,15 +255,16 @@ def upload_material():
 
     qa_chain = initialize_qa_chain(vector_store)
 
-    upload_end_time = time.time()  # end timer
+    upload_end_time = time.time()
     upload_duration = round(upload_end_time - upload_start_time, 2)
 
-    print(f"[UPLOAD] Upload and processing time: {upload_duration} seconds") 
+    print(f"[UPLOAD] Upload and processing time: {upload_duration} seconds")
 
     return jsonify({
         "message": "Material added to knowledge base.",
         "chars_ingested": len(new_text)
     })
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5001)
